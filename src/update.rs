@@ -2,9 +2,11 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
+use std::path::Path;
+use std::process::Command;
 use whoami::username;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Package {
     pub name: String,
     pub version: (u8, u8, u8),
@@ -45,10 +47,12 @@ pub fn read_vaaman_packages() -> Result<VaamanPackages, std::io::Error> {
     if !std::path::Path::new(&path).exists() {
         let mut file = File::create(&path)?;
         file.write_all(
-            serde_json::to_string(&VaamanPackages::default())
+            serde_json::to_string_pretty(&VaamanPackages::default())
                 .unwrap()
                 .as_bytes(),
         )?;
+
+        return Ok(VaamanPackages::default());
     }
 
     let mut file = File::open(path)?;
@@ -57,6 +61,22 @@ pub fn read_vaaman_packages() -> Result<VaamanPackages, std::io::Error> {
 
     let packages: VaamanPackages = serde_json::from_str(&contents)?;
     Ok(packages)
+}
+
+pub enum PacmanWrapper {
+    Pacman,
+    Yay,
+    Paru,
+}
+
+pub fn get_pacman_wrapper() -> Result<PacmanWrapper, std::io::Error> {
+    if Path::new("/usr/bin/yay").exists() {
+        Ok(PacmanWrapper::Yay)
+    } else if Path::new("/usr/bin/paru").exists() {
+        Ok(PacmanWrapper::Paru)
+    } else {
+        Ok(PacmanWrapper::Pacman)
+    }
 }
 
 impl Package {
@@ -90,10 +110,16 @@ impl Package {
     }
 
     pub fn get_current_version(name: &str) -> std::io::Result<Option<(u8, u8, u8)>> {
-        for package in read_vaaman_packages()?.packages {
-            if package.name == name {
-                return Ok(Some(package.version));
-            }
+        let packages = read_vaaman_packages()?;
+
+        // check if packages is empty
+        if packages.packages.is_empty() {
+            println!("No packages found");
+            return Ok(None);
+        }
+
+        if let Some(package) = packages.packages.iter().find(|p| p.name == name) {
+            return Ok(Some(package.version));
         }
 
         Ok(None)
@@ -140,6 +166,40 @@ impl Package {
 
         Ok(false)
     }
+
+    pub fn update_package(&self) -> Result<(), std::io::Error> {
+        match get_pacman_wrapper()? {
+            PacmanWrapper::Pacman => {
+                Command::new("sudo")
+                    .arg("pacman")
+                    .arg("-S")
+                    .arg("--noconfirm")
+                    .arg(&self.name)
+                    .spawn()?
+                    .wait()?;
+            }
+            PacmanWrapper::Yay => {
+                Command::new("sudo")
+                    .arg("yay")
+                    .arg("-S")
+                    .arg("--noconfirm")
+                    .arg(&self.name)
+                    .spawn()?
+                    .wait()?;
+            }
+            PacmanWrapper::Paru => {
+                Command::new("sudo")
+                    .arg("paru")
+                    .arg("-S")
+                    .arg("--noconfirm")
+                    .arg(&self.name)
+                    .spawn()?
+                    .wait()?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl VaamanPackages {
@@ -174,8 +234,8 @@ impl VaamanPackages {
     pub fn check_updates(&self) -> std::io::Result<Vec<Package>> {
         let mut updates = Vec::new();
 
+        println!("Checking for updates: {self}");
         for package in &self.packages {
-            println!("Checking for updates: {package}");
             if package.check_update()? {
                 updates.push(package.clone());
             }
