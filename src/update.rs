@@ -6,6 +6,8 @@ use std::path::Path;
 use std::process::Command;
 use whoami::username;
 
+const URL: &str = "http://35.187.91.110/";
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Package {
     pub name: String,
@@ -88,7 +90,7 @@ impl Package {
     pub async fn get_latest_version(
         name: &str,
     ) -> Result<(u8, u8, u8), Box<dyn std::error::Error>> {
-        let url = format!("http://35.187.91.110/vaaman/{name}/PKGBUILD");
+        let url = format!("{URL}{name}/PKGBUILD");
         let text = reqwest::get(&url).await?.text().await?;
 
         // get pkgver: (x.x.x) from PKGBUILD
