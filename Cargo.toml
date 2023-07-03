@@ -1,15 +1,15 @@
 [package]
-name = "vaaman-updates-checker"
-version = "0.1.0"
+name = "vicharak-updates-checker"
+version = "0.2.0"
 edition = "2021"
 authors = ["UtsavBalar1231 <utsavbalar1231@gmail.com>"]
 license = "MIT OR Apache-2.0"
-description = "A CLI tool to check for updates of your installed packages"
-repository = "https://github.com/vicharak-in/vaaman-updates-checker"
+description = "A CLI tool to check for updates on vicharak firmware"
+repository = "https://github.com/vicharak-in/vicharak-updates-checker"
 
 [dependencies]
-whoami = "0.2.0"
-reqwest = "0.11.13"
-serde = { version = "1.0.152", features = ["derive"] }
-serde_json = "1.0.91"
-tokio = { version = "1.24.1", features = ["rt-multi-thread", "macros"] }
+whoami = "1.4.1"
+reqwest = "0.11.18"
+serde = { version = "1.0.164", features = ["derive"] }
+serde_json = "1.0.99"
+tokio = { version = "1.29.1", features = ["rt-multi-thread", "macros"] }
