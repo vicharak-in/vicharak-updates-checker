@@ -1,11 +1,11 @@
 pub mod update;
 use update::Package;
-use update::VaamanPackages;
+use update::VicharakPackages;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let available_packages = vec!["vaaman-aes", "vaamos-menu-git"];
-    let mut packages = VaamanPackages::new();
+    let mut packages = VicharakPackages::new();
 
     for package in available_packages {
         packages.add_package(Package::new(

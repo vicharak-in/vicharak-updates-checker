@@ -15,7 +15,7 @@ pub struct Package {
 }
 
 #[derive(Serialize, Deserialize, Default)]
-pub struct VaamanPackages {
+pub struct VicharakPackages {
     pub packages: Vec<Package>,
 }
 
@@ -30,7 +30,7 @@ impl std::fmt::Display for Package {
     }
 }
 
-impl std::fmt::Display for VaamanPackages {
+impl std::fmt::Display for VicharakPackages {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut output = String::new();
         for package in &self.packages {
@@ -43,25 +43,25 @@ impl std::fmt::Display for VaamanPackages {
     }
 }
 
-pub fn read_vaaman_packages() -> Result<VaamanPackages, std::io::Error> {
+pub fn read_vicharak_packages() -> Result<VicharakPackages, std::io::Error> {
     // check if file exists
-    let path = format!("/home/{}/.vaaman_packages.json", username());
+    let path = format!("/home/{}/.vicharak_packages.json", username());
     if !std::path::Path::new(&path).exists() {
         let mut file = File::create(&path)?;
         file.write_all(
-            serde_json::to_string_pretty(&VaamanPackages::default())
+            serde_json::to_string_pretty(&VicharakPackages::default())
                 .unwrap()
                 .as_bytes(),
         )?;
 
-        return Ok(VaamanPackages::default());
+        return Ok(VicharakPackages::default());
     }
 
     let mut file = File::open(path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
 
-    let packages: VaamanPackages = serde_json::from_str(&contents)?;
+    let packages: VicharakPackages = serde_json::from_str(&contents)?;
     Ok(packages)
 }
 
@@ -86,7 +86,7 @@ impl Package {
         Package { name, version }
     }
 
-    /// Get latest version of a package from the server (http://35.187.91.110/vaaman/).
+    /// Get latest version of a package from the server (http://35.187.91.110/vicharak/).
     pub async fn get_latest_version(
         name: &str,
     ) -> Result<(u8, u8, u8), Box<dyn std::error::Error>> {
@@ -112,7 +112,7 @@ impl Package {
     }
 
     pub fn get_current_version(name: &str) -> std::io::Result<Option<(u8, u8, u8)>> {
-        let packages = read_vaaman_packages()?;
+        let packages = read_vicharak_packages()?;
 
         // check if packages is empty
         if packages.packages.is_empty() {
@@ -204,7 +204,7 @@ impl Package {
     }
 }
 
-impl VaamanPackages {
+impl VicharakPackages {
     pub fn new() -> Self {
         Self {
             packages: Vec::new(),
@@ -217,15 +217,15 @@ impl VaamanPackages {
 
     pub fn save_packages_to_file(&self) -> std::io::Result<()> {
         for package in &self.packages {
-            let mut vaaman_packages = read_vaaman_packages()?;
+            let mut vicharak_packages = read_vicharak_packages()?;
 
             // check if package already exists
             if Package::get_current_version(&package.name)?.is_none() {
-                vaaman_packages.add_package(package.clone());
+                vicharak_packages.add_package(package.clone());
             }
 
-            let path = format!("/home/{}/.vaaman_packages.json", username());
-            let json_string = serde_json::to_string_pretty(&vaaman_packages)?;
+            let path = format!("/home/{}/.vicharak_packages.json", username());
+            let json_string = serde_json::to_string_pretty(&vicharak_packages)?;
             let mut file = File::create(&path)?;
             file.write_all(json_string.as_bytes())?;
         }
