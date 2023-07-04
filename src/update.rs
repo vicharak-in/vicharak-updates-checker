@@ -6,12 +6,22 @@ use std::path::Path;
 use std::process::Command;
 use whoami::username;
 
-const URL: &str = "http://35.187.91.110/";
+const GIT_URL: &str = "http://github.com/vicharak-in/";
+// GIT_URL/vicharak-PKGBUILDS
+const PKGBUILD_URL: &str = "https://raw.githubusercontent.com/vicharak-in/vicharak-PKGBUILDS/";
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum OSType {
+    Arch,
+    Debian,
+    Unknown,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Package {
     pub name: String,
     pub version: (u8, u8, u8),
+    pub os: OSType,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -83,14 +93,28 @@ pub fn get_pacman_wrapper() -> Result<PacmanWrapper, std::io::Error> {
 
 impl Package {
     pub fn new(name: String, version: (u8, u8, u8)) -> Package {
-        Package { name, version }
+        Package {
+            name,
+            version,
+            os: Package::get_host_os_type(),
+        }
+    }
+
+    pub fn get_host_os_type() -> OSType {
+        if Path::new("/usr/bin/pacman").exists() {
+            OSType::Arch
+        } else if Path::new("/usr/bin/apt").exists() {
+            OSType::Debian
+        } else {
+            OSType::Unknown
+        }
     }
 
     /// Get latest version of a package from the server (http://35.187.91.110/vicharak/).
-    pub async fn get_latest_version(
+    pub async fn get_latest_version_arch(
         name: &str,
     ) -> Result<(u8, u8, u8), Box<dyn std::error::Error>> {
-        let url = format!("{URL}{name}/PKGBUILD");
+        let url = format!("{PKGBUILD_URL}{name}/master/PKGBUILD");
         let text = reqwest::get(&url).await?.text().await?;
 
         // get pkgver: (x.x.x) from PKGBUILD
@@ -107,6 +131,34 @@ impl Package {
             .split('.')
             .map(|v| v.parse::<u8>().expect("Malformed pkgver in PKGBUILD"))
             .collect::<Vec<u8>>();
+
+        Ok((pkgver[0], pkgver[1], pkgver[2]))
+    }
+
+    pub async fn get_latest_version_debian(
+        name: &str,
+    ) -> Result<(u8, u8, u8), Box<dyn std::error::Error>> {
+        let url = format!("{}{}/raw/master/debian/changelog", GIT_URL, name);
+
+        println!("Getting latest version for {}", name);
+        let text = reqwest::get(url).await?.text().await?;
+
+        // get pkg version from debian/changelog
+        let pkgver = text
+            .split('(')
+            .nth(1)
+            .expect("Could not find version in debian/changelog")
+            .split(')')
+            .next()
+            .unwrap()
+            .split('.')
+            .map(|v| {
+                v.parse::<u8>()
+                    .expect("Malformed version in debian/changelog")
+            })
+            .collect::<Vec<u8>>();
+
+        println!("Latest version for {} is {}.{}.{}", name, pkgver[0], pkgver[1], pkgver[2]);
 
         Ok((pkgver[0], pkgver[1], pkgver[2]))
     }
@@ -169,37 +221,48 @@ impl Package {
         Ok(false)
     }
 
-    pub fn update_package(&self) -> Result<(), std::io::Error> {
+    fn pacman_command(&self) -> Result<Command, std::io::Error> {
+        let mut command = Command::new("sudo");
+
         match get_pacman_wrapper()? {
             PacmanWrapper::Pacman => {
-                Command::new("sudo")
-                    .arg("pacman")
-                    .arg("-S")
-                    .arg("--noconfirm")
-                    .arg(&self.name)
-                    .spawn()?
-                    .wait()?;
+                command.arg("pacman");
             }
             PacmanWrapper::Yay => {
-                Command::new("sudo")
-                    .arg("yay")
-                    .arg("-S")
-                    .arg("--noconfirm")
-                    .arg(&self.name)
-                    .spawn()?
-                    .wait()?;
+                command.arg("yay");
             }
             PacmanWrapper::Paru => {
-                Command::new("sudo")
-                    .arg("paru")
-                    .arg("-S")
-                    .arg("--noconfirm")
-                    .arg(&self.name)
-                    .spawn()?
-                    .wait()?;
+                command.arg("paru");
             }
         }
 
+        command.arg("-S").arg("--noconfirm").arg(&self.name);
+
+        Ok(command)
+    }
+
+    fn apt_command(&self) -> Result<Command, std::io::Error> {
+        let mut command = Command::new("sudo");
+
+        command.arg("apt").arg("install").arg("-y").arg(&self.name);
+
+        Ok(command)
+    }
+
+    pub fn update_package(&self) -> Result<(), std::io::Error> {
+        match self.os {
+            OSType::Arch => {
+                self.pacman_command()?.spawn()?.wait()?;
+            }
+
+            OSType::Debian => {
+                self.apt_command()?.spawn()?.wait()?;
+            }
+
+            OSType::Unknown => {
+                println!("Unknown OS");
+            }
+        }
         Ok(())
     }
 }
